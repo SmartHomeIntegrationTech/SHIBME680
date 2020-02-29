@@ -16,9 +16,9 @@
   "frameworks": "arduino",
   "platforms": "espressif32",
   "dependencies": {
-    "Preferences": "1.0",
-    "Wire": "1.0.1",
-    "SPI": ">=1.0",
-    "SmartHomeIntegrationTech": ">=0.2.1"
+    "Preferences": "^1.0",
+    "Wire": "^1.0.1",
+    "SPI": "^1.0",
+    "SmartHomeIntegrationTech": "^0.2.1"
   }
 }
