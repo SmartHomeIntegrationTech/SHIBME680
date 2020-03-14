@@ -19,6 +19,9 @@ struct BSEC_State_t {
   uint32_t n_work_buffer_size = BSEC_MAX_STATE_BLOB_SIZE;
 };
 
+SHI::BME680::BME680(const BME680Config &config)
+    : Sensor("BME680"), config(config) {}
+
 void SHI::BME680::storeState() {
   SHI_LOGINFO("Storing state");
   BSEC_State_t state;
@@ -42,22 +45,35 @@ bool SHI::BME680::restoreState() {
   return false;
 }
 
-bool SHI::BME680::setupSensor() {
-  bsecStatePrefs.begin(SENSOR_STATE);
-  // We need to use Wire1 as Wire is used by the display
+bool SHI::BME680::reconfigure(Configuration *newConfig) {
+  config = castConfig<BME680Config>(newConfig);
+  return reconfigure();
+}
+
+bool SHI::BME680::reconfigure() {
+  switch (config.useBus) {
+    case 0:
+      wire = &Wire;
+      SHI_LOGINFO("Using Wire");
+      break;
+    case 1:
+      wire = &Wire1;
+      SHI_LOGINFO("Using Wire1");
+      break;
+  }
   if (!wire->begin()) {
-    SHI_LOGINFO("Failed to init I2C!");
+    SHI_LOGERROR("Failed to init I2C!");
     return false;
   }
-  iaqSensor.begin(
-      primaryAddress ? BME680_I2C_ADDR_PRIMARY : BME680_I2C_ADDR_SECONDARY,
-      *wire);
+  iaqSensor.begin(config.primaryAddress ? BME680_I2C_ADDR_PRIMARY
+                                        : BME680_I2C_ADDR_SECONDARY,
+                  *wire);
+
   SHI_LOGINFO(("BSEC library version " + String(iaqSensor.version.major) + "." +
                String(iaqSensor.version.minor) + "." +
                String(iaqSensor.version.major_bugfix) + "." +
                String(iaqSensor.version.minor_bugfix))
                   .c_str());
-
   updateIaqSensorStatus();
 
   restoreState();
@@ -74,9 +90,16 @@ bool SHI::BME680::setupSensor() {
       BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE,
       BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY,
   };
-
-  iaqSensor.updateSubscription(sensorList, 10, BSEC_SAMPLE_RATE_LP);
+  iaqSensor.updateSubscription(sensorList,
+                               sizeof(sensorList) / sizeof(sensorList[0]),
+                               config.sampleRate);
   updateIaqSensorStatus();
+  return true;
+}
+
+bool SHI::BME680::setupSensor() {
+  bsecStatePrefs.begin(SENSOR_STATE);
+  if (!reconfigure()) return false;
 
   addMetaData(pressure);
   addMetaData(temperature);
@@ -93,7 +116,9 @@ std::vector<SHI::MeasurementBundle> SHI::BME680::readSensor() {
   SHI::hw->feedWatchdog();
 
   if (iaqSensor.run()) {  // If new data is available
-    if (time_trigger - lastStateTime > 60000 && iaqSensor.iaqAccuracy >= 3) {
+    if (config.storeAndRestoreState &&
+        time_trigger - lastStateTime > config.minStableTime &&
+        iaqSensor.iaqAccuracy >= 3) {
       lastStateTime = time_trigger;
       storeState();
     }
@@ -114,32 +139,44 @@ std::vector<SHI::MeasurementBundle> SHI::BME680::readSensor() {
 }
 // Helper function definitions
 void SHI::BME680::updateIaqSensorStatus(void) {
+  SHI_LOGINFO("Checking BME680 status");
   statusMessage = SHI::STATUS_OK;
   fatalError = false;
   if (iaqSensor.status != BSEC_OK) {
+    SHI_LOGINFO("Checking BSEC not OK");
+    ets_printf("BSEC code %d %02x\n", iaqSensor.status, iaqSensor.status);
     if (iaqSensor.status < BSEC_OK) {
-      String output = "BSEC error code : " + String(iaqSensor.status);
-      SHI_LOGINFO(output.c_str());
-      statusMessage = output.c_str();
+      auto output = std::string(
+          (String("BSEC error code : ") + String(iaqSensor.status)).c_str());
+      // SHI_LOGERROR(output);
+      statusMessage = output;
       fatalError = true;
     } else {
-      String output = "BSEC warning code : " + String(iaqSensor.status);
-      SHI_LOGINFO(output.c_str());
-      statusMessage = output.c_str();
+      auto output = std::string(
+          (String("BSEC Warning code : ") + String(iaqSensor.status)).c_str());
+      // SHI_LOGWARNING(output);
+      statusMessage = output;
       fatalError = false;
     }
   }
 
   if (iaqSensor.bme680Status != BME680_OK) {
+    SHI_LOGINFO("Checking BME not OK");
+    ets_printf("BME code %d %02x\n", iaqSensor.bme680Status,
+               iaqSensor.bme680Status);
     if (iaqSensor.bme680Status < BME680_OK) {
-      String output = "BME680 error code : " + String(iaqSensor.bme680Status);
-      SHI_LOGINFO(output.c_str());
+      std::string output = std::string(
+          (String("BME680 error code : ") + String(iaqSensor.bme680Status))
+              .c_str());
+      // SHI_LOGERROR(output.c_str());
       statusMessage = output.c_str();
       fatalError = true;
     } else {
-      String output = "BME680 warning code : " + String(iaqSensor.bme680Status);
-      SHI_LOGINFO(output.c_str());
-      statusMessage = output.c_str();
+      std::string output = std::string(
+          (String("BME680 warning code : ") + String(iaqSensor.bme680Status))
+              .c_str());
+      // SHI_LOGWARN(output);
+      statusMessage = output;
       fatalError = false;
     }
   }

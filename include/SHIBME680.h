@@ -9,17 +9,35 @@
 #include <bsec.h>
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace SHI {
 
+class BME680Config : public Configuration {
+ public:
+  BME680Config() {}
+  explicit BME680Config(const JsonObject &obj);
+  void fillData(JsonObject &doc) const override;
+  int useBus = 0;
+  bool primaryAddress = true;
+  bool storeAndRestoreState = true;
+  float sampleRate = BSEC_SAMPLE_RATE_LP;
+  int minStableTime = 60000;
+
+ protected:
+  int getExpectedCapacity() const override;
+};
+
 class BME680 : public SHI::Sensor {
  public:
-  explicit BME680(TwoWire &i2cPort, bool primaryAddress = true)
-      : Sensor("BME680"), primaryAddress(primaryAddress), wire(&i2cPort) {}
+  explicit BME680(const BME680Config &config);
   std::vector<SHI::MeasurementBundle> readSensor() override;
   bool setupSensor() override;
   bool stopSensor() override { return true; }
+  const Configuration *getConfig() const override { return &config; }
+  bool reconfigure(Configuration *newConfig);
+  bool reconfigure();
 
  private:
   Bsec iaqSensor;
@@ -27,8 +45,8 @@ class BME680 : public SHI::Sensor {
   void storeState();
   bool restoreState();
   void updateIaqSensorStatus(void);
-  bool primaryAddress;
   TwoWire *wire;
+  BME680Config config;
 
   std::shared_ptr<SHI::MeasurementMetaData> temperature =
       std::make_shared<SHI::MeasurementMetaData>("Temperature", "°C",
