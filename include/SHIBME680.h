@@ -16,7 +16,8 @@ namespace SHI {
 
 class BME680Config : public Configuration {
  public:
-  BME680Config() {}
+  explicit BME680Config(int useBus = 0, bool primaryAddress = true)
+      : useBus(useBus), primaryAddress(primaryAddress) {}
   explicit BME680Config(const JsonObject &obj);
   void fillData(JsonObject &doc) const override;
   int useBus = 0;

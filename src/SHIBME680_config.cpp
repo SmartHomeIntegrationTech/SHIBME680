@@ -6,7 +6,7 @@
 
 // WARNING, this is an automatically generated file!
 // Don't change anything in here.
-// Last update 2020-03-12
+// Last update 2020-03-23
 
 # include <iostream>
 # include <string>
@@ -15,8 +15,12 @@
 # include "SHIBME680.h"
 // Configuration implementation for class SHI::BME680Config
 
+namespace {
+    
+}  // namespace
+
 SHI::BME680Config::BME680Config(const JsonObject &obj):
-       useBus(obj["useBus"] | 0),
+      useBus(obj["useBus"] | 0),
       primaryAddress(obj["primaryAddress"] | true),
       storeAndRestoreState(obj["storeAndRestoreState"] | true),
       sampleRate(obj["sampleRate"] | BSEC_SAMPLE_RATE_LP),
